@@ -30,13 +30,10 @@ local SPAWN_POINTS = {
 }
 
 local lobbyCenter = Vector3.new(864.9, 67.5, 394.5)
-local w,h,d  = 50,20,50
-local hw,hh,hd = w/2, h/2, d/2
+local w,h,d,hw,hh,hd = 50,20,50,50/2,20/2,50/2
 
--- GUI setup
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name   = "GameGui"
-screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+local screenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
+screenGui.Name = "GameGui"
 
 local statusLabel = Instance.new("TextLabel", screenGui)
 statusLabel.Size               = UDim2.new(0,200,0,50)
@@ -87,23 +84,10 @@ local function resetGUI()
     currentTime  = 0
     entered      = false
     meshSpawned  = false
-    if mainSound then
-        mainSound:Stop()
-        mainSound:Destroy()
-        mainSound = nil
-    end
-    if roundCoroutine then
-        coroutine.close(roundCoroutine)
-        roundCoroutine = nil
-    end
-    if meshPart then
-        meshPart:Destroy()
-        meshPart = nil
-    end
-    if pointerGui then
-        pointerGui:Destroy()
-        pointerGui = nil
-    end
+    if mainSound then mainSound:Stop(); mainSound:Destroy(); mainSound = nil end
+    if roundCoroutine then coroutine.close(roundCoroutine); roundCoroutine = nil end
+    if meshPart then meshPart:Destroy(); meshPart = nil end
+    if pointerGui then pointerGui:Destroy(); pointerGui = nil end
     statusLabel.Text       = "Waiting To Start"
     statusLabel.Visible    = true
     imageLabel.Visible     = false
@@ -124,27 +108,16 @@ end
 local function spawnLobbyBox()
     local function makePart(props)
         local p = Instance.new("Part")
-        for k,v in pairs(props) do p[k] = v end
-        p.Anchored = true
-        p.Parent   = Workspace
+        for k,v in pairs(props) do p[k]=v end
+        p.Anchored = true; p.Parent = Workspace
         return p
     end
-    makePart{
-        Size       = Vector3.new(w,1,d),
-        Position   = lobbyCenter - Vector3.new(0,hh-0.5,0),
-        Material   = Enum.Material.Concrete,
-        BrickColor = BrickColor.new("Dark stone grey"),
-    }
-    local roof = makePart{
-        Size       = Vector3.new(w,1,d),
-        Position   = lobbyCenter + Vector3.new(0,hh-0.5,0),
-        Material   = Enum.Material.Concrete,
-        BrickColor = BrickColor.new("Dark stone grey"),
-    }
+    makePart{ Size=Vector3.new(w,1,d), Position=lobbyCenter-Vector3.new(0,hh-0.5,0),
+              Material=Enum.Material.Concrete, BrickColor=BrickColor.new("Dark stone grey") }
+    local roof = makePart{ Size=Vector3.new(w,1,d), Position=lobbyCenter+Vector3.new(0,hh-0.5,0),
+                           Material=Enum.Material.Concrete, BrickColor=BrickColor.new("Dark stone grey") }
     local light = Instance.new("PointLight", roof)
-    light.Brightness = 5
-    light.Range      = 60
-    light.Color      = Color3.new(1,1,1)
+    light.Brightness = 5; light.Range = 60; light.Color = Color3.new(1,1,1)
     local mat, col = Enum.Material.Marble, BrickColor.new("Black")
     makePart{ Size=Vector3.new(w,h,1), Position=lobbyCenter+Vector3.new(0,0,-hd), Material=mat, BrickColor=col }
     makePart{ Size=Vector3.new(w,h,1), Position=lobbyCenter+Vector3.new(0,0, hd), Material=mat, BrickColor=col }
@@ -188,16 +161,17 @@ local function startMeshSequence()
         local screenPos, onScreen = camera:WorldToViewportPoint(meshPos + Vector3.new(0,10,0))
         pointerLabel.Visible = onScreen
         if onScreen then
-            pointerLabel.Position = UDim2.new(
-                0, screenPos.X - pointerLabel.AbsoluteSize.X/2,
-                0, screenPos.Y - pointerLabel.AbsoluteSize.Y - 50
+            pointerLabel.Position = UDim2.new(0,
+                screenPos.X - pointerLabel.AbsoluteSize.X/2,
+                0,
+                screenPos.Y - pointerLabel.AbsoluteSize.Y - 50
             )
         end
         if not entered and LocalPlayer.Character then
             local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
             if hrp and (hrp.Position - meshPos).Magnitude <= 6 then
                 entered = true
-                hrp.CFrame = teleportCF
+                hrp.CFrame = CFrame.new(lobbyCenter.X, lobbyCenter.Y - (hh - 0.5) + 3, lobbyCenter.Z)
                 imageLabel.Visible     = false
                 countdownLabel.Visible = false
                 statusLabel.Text       = "Round In Progress"
@@ -266,7 +240,7 @@ end
 
 LocalPlayer.Chatted:Connect(function(msg)
     if not ALLOWED[LocalPlayer.Name] then return end
-    if msg == "/RoundStart" and not running then
+    if msg == "/StartRound" and not running then
         local choice = SPAWN_POINTS[math.random(1,#SPAWN_POINTS)]
         local char   = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
         char:WaitForChild("HumanoidRootPart").CFrame = CFrame.new(choice)
