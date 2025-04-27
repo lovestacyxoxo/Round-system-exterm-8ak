@@ -1,0 +1,289 @@
+local Players           = game:GetService("Players")
+local RunService        = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace         = game:GetService("Workspace")
+local LocalPlayer       = Players.LocalPlayer
+
+local ALLOWED = {
+    Igorinhoooo   = true,
+    ["8akitkatsd"] = true,
+}
+
+local DEFAULT_TIME   = 210
+local running        = false
+local currentTime    = 0
+local roundCoroutine = nil
+local mainSound      = nil
+local entered        = false
+local meshSpawned    = false
+local meshPart       = nil
+local pointerGui     = nil
+
+local SPAWN_POINTS = {
+    Vector3.new(423.2, 46.0, 421.1),
+    Vector3.new(22.6, 20.5, 169.4),
+    Vector3.new(173.3, 33.6, 203.9),
+    Vector3.new(-175.2, 42.9, 583.7),
+    Vector3.new(-204.6, 20.3, 388.6),
+    Vector3.new(411.2, 17.2, 739.8),
+    Vector3.new(384.7, 16.4, 415.1),
+}
+
+local lobbyCenter = Vector3.new(864.9, 67.5, 394.5)
+local w,h,d  = 50,20,50
+local hw,hh,hd = w/2, h/2, d/2
+
+-- GUI setup
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name   = "GameGui"
+screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local statusLabel = Instance.new("TextLabel", screenGui)
+statusLabel.Size               = UDim2.new(0,200,0,50)
+statusLabel.Position           = UDim2.new(0.5,-100,0,20)
+statusLabel.BackgroundTransparency = 1
+statusLabel.TextScaled         = true
+statusLabel.Font               = Enum.Font.Arcade
+statusLabel.TextColor3         = Color3.new(1,1,1)
+statusLabel.TextStrokeTransparency = 0
+statusLabel.TextStrokeColor3   = Color3.new(0,0,0)
+statusLabel.Text               = "Waiting To Start"
+
+local imageLabel = Instance.new("ImageLabel", screenGui)
+imageLabel.Size               = UDim2.new(0,75,0,75)
+imageLabel.Position           = UDim2.new(0.5,-90,0,10)
+imageLabel.Image              = "rbxassetid://123848182721193"
+imageLabel.BackgroundTransparency = 1
+imageLabel.ScaleType          = Enum.ScaleType.Fit
+imageLabel.Visible            = false
+
+local countdownLabel = Instance.new("TextLabel", screenGui)
+countdownLabel.Size             = UDim2.new(0,100,0,50)
+countdownLabel.Position         = UDim2.new(0.5,-30,0,20)
+countdownLabel.BackgroundTransparency = 1
+countdownLabel.TextScaled       = true
+countdownLabel.Font             = Enum.Font.Arcade
+countdownLabel.TextColor3       = Color3.new(1,1,1)
+countdownLabel.TextStrokeTransparency = 0
+countdownLabel.TextStrokeColor3 = Color3.new(0,0,0)
+countdownLabel.Visible          = false
+
+local gradient = Instance.new("UIGradient", countdownLabel)
+gradient.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0,   Color3.fromRGB(200,200,200)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(100,100,100)),
+    ColorSequenceKeypoint.new(1,   Color3.fromRGB(200,200,200)),
+}
+
+local redTint = Instance.new("Frame", screenGui)
+redTint.Size               = UDim2.new(1,0,1,0)
+redTint.BackgroundColor3   = Color3.new(1,0,0)
+redTint.BackgroundTransparency = 1
+redTint.ZIndex             = -1
+redTint.Visible            = false
+
+local function resetGUI()
+    running      = false
+    currentTime  = 0
+    entered      = false
+    meshSpawned  = false
+    if mainSound then
+        mainSound:Stop()
+        mainSound:Destroy()
+        mainSound = nil
+    end
+    if roundCoroutine then
+        coroutine.close(roundCoroutine)
+        roundCoroutine = nil
+    end
+    if meshPart then
+        meshPart:Destroy()
+        meshPart = nil
+    end
+    if pointerGui then
+        pointerGui:Destroy()
+        pointerGui = nil
+    end
+    statusLabel.Text       = "Waiting To Start"
+    statusLabel.Visible    = true
+    imageLabel.Visible     = false
+    countdownLabel.Visible = false
+    redTint.Visible        = false
+end
+
+local function setupMainSound()
+    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local hrp  = char:FindFirstChild("HumanoidRootPart") or char
+    local s    = Instance.new("Sound", hrp)
+    s.SoundId = "rbxassetid://6785997143"
+    s.Volume  = 0.8
+    s.Looped  = true
+    return s
+end
+
+local function spawnLobbyBox()
+    local function makePart(props)
+        local p = Instance.new("Part")
+        for k,v in pairs(props) do p[k] = v end
+        p.Anchored = true
+        p.Parent   = Workspace
+        return p
+    end
+    makePart{
+        Size       = Vector3.new(w,1,d),
+        Position   = lobbyCenter - Vector3.new(0,hh-0.5,0),
+        Material   = Enum.Material.Concrete,
+        BrickColor = BrickColor.new("Dark stone grey"),
+    }
+    local roof = makePart{
+        Size       = Vector3.new(w,1,d),
+        Position   = lobbyCenter + Vector3.new(0,hh-0.5,0),
+        Material   = Enum.Material.Concrete,
+        BrickColor = BrickColor.new("Dark stone grey"),
+    }
+    local light = Instance.new("PointLight", roof)
+    light.Brightness = 5
+    light.Range      = 60
+    light.Color      = Color3.new(1,1,1)
+    local mat, col = Enum.Material.Marble, BrickColor.new("Black")
+    makePart{ Size=Vector3.new(w,h,1), Position=lobbyCenter+Vector3.new(0,0,-hd), Material=mat, BrickColor=col }
+    makePart{ Size=Vector3.new(w,h,1), Position=lobbyCenter+Vector3.new(0,0, hd), Material=mat, BrickColor=col }
+    makePart{ Size=Vector3.new(1,h,d), Position=lobbyCenter+Vector3.new(-hw,0,0), Material=mat, BrickColor=col }
+    makePart{ Size=Vector3.new(1,h,d), Position=lobbyCenter+Vector3.new( hw,0,0), Material=mat, BrickColor=col }
+end
+
+local function startMeshSequence()
+    if meshSpawned then return end
+    meshSpawned = true
+    spawnLobbyBox()
+    local meshPos = Vector3.new(64.35, 45.80, 681.13)
+    meshPart = Instance.new("Part", Workspace)
+    meshPart.Name       = "MainMesh"
+    meshPart.Size       = Vector3.new(4,4,4)
+    meshPart.Anchored   = true
+    meshPart.CanCollide = false
+    meshPart.Color      = Color3.fromRGB(0,255,0)
+    meshPart.Position   = meshPos
+
+    local mainMesh = Instance.new("SpecialMesh", meshPart)
+    mainMesh.MeshType = Enum.MeshType.FileMesh
+    mainMesh.MeshId   = "rbxassetid://3270017"
+    mainMesh.Scale    = Vector3.new(9,9,9)
+
+    local camera = Workspace.CurrentCamera
+    pointerGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
+    local pointerLabel = Instance.new("TextLabel", pointerGui)
+    pointerLabel.Size             = UDim2.new(0,100,0,50)
+    pointerLabel.BackgroundTransparency = 1
+    pointerLabel.TextColor3       = Color3.new(0,1,0)
+    pointerLabel.Text             = "V"
+    pointerLabel.Font             = Enum.Font.SourceSansBold
+    pointerLabel.TextScaled       = true
+
+    local floorY     = lobbyCenter.Y - (hh - 0.5)
+    local teleportCF = CFrame.new(lobbyCenter.X, floorY + 3, lobbyCenter.Z)
+
+    RunService.RenderStepped:Connect(function()
+        meshPart.CFrame = meshPart.CFrame * CFrame.Angles(0, math.rad(2), 0)
+        local screenPos, onScreen = camera:WorldToViewportPoint(meshPos + Vector3.new(0,10,0))
+        pointerLabel.Visible = onScreen
+        if onScreen then
+            pointerLabel.Position = UDim2.new(
+                0, screenPos.X - pointerLabel.AbsoluteSize.X/2,
+                0, screenPos.Y - pointerLabel.AbsoluteSize.Y - 50
+            )
+        end
+        if not entered and LocalPlayer.Character then
+            local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if hrp and (hrp.Position - meshPos).Magnitude <= 6 then
+                entered = true
+                hrp.CFrame = teleportCF
+                imageLabel.Visible     = false
+                countdownLabel.Visible = false
+                statusLabel.Text       = "Round In Progress"
+                statusLabel.Visible    = true
+                redTint.Visible        = false
+            end
+        end
+    end)
+end
+
+local function startRound(duration)
+    running      = true
+    currentTime  = duration or DEFAULT_TIME
+    statusLabel.Visible    = false
+    imageLabel.Visible     = true
+    countdownLabel.Visible = true
+    redTint.Visible        = true
+
+    mainSound = setupMainSound()
+    roundCoroutine = coroutine.create(function()
+        while currentTime >= 0 do
+            countdownLabel.Text = tostring(currentTime)
+            if currentTime == 80 then
+                redTint.BackgroundTransparency = 0.75
+                mainSound:Play()
+                startMeshSequence()
+            end
+            if currentTime <= 10 and currentTime > 0 and LocalPlayer.Character then
+                local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    local beep = Instance.new("Sound", hrp)
+                    beep.SoundId = "rbxassetid://2610939724"
+                    beep.Volume  = 1
+                    beep:Play()
+                    game:GetService("Debris"):AddItem(beep, 2)
+                end
+            end
+            if currentTime == 0 then
+                mainSound:Stop()
+                if entered then
+                    statusLabel.Text    = "GameOver!"
+                    statusLabel.Visible = true
+                    wait(5)
+                    statusLabel.Visible = false
+                    if meshPart then meshPart:Destroy(); meshPart = nil end
+                    if pointerGui then pointerGui:Destroy(); pointerGui = nil end
+                    LocalPlayer:LoadCharacter()
+                else
+                    local char = LocalPlayer.Character
+                    if char then
+                        local hum = char:FindFirstChildOfClass("Humanoid")
+                        if hum then hum.Health = 0 end
+                    end
+                end
+                break
+            end
+            local actn = ReplicatedStorage:WaitForChild("events"):WaitForChild("actn")
+            actn:FireServer(LocalPlayer.Character, "dead")
+            currentTime -= 1
+            wait(1)
+        end
+        resetGUI()
+    end)
+    coroutine.resume(roundCoroutine)
+end
+
+LocalPlayer.Chatted:Connect(function(msg)
+    if not ALLOWED[LocalPlayer.Name] then return end
+    if msg == "/RoundStart" and not running then
+        local choice = SPAWN_POINTS[math.random(1,#SPAWN_POINTS)]
+        local char   = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+        char:WaitForChild("HumanoidRootPart").CFrame = CFrame.new(choice)
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/lovestacyxoxo/Down-system-for-mama/refs/heads/main/Yea"))()
+        startRound(DEFAULT_TIME)
+    end
+    local n = msg:match("^/SetTimer%s+(%d+)$")
+    if n and running then
+        currentTime = tonumber(n)
+        countdownLabel.Text = tostring(currentTime)
+    end
+    if msg == "/SetLobby" and ALLOWED[LocalPlayer.Name] then
+        spawnLobbyBox()
+        local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+        char:WaitForChild("HumanoidRootPart").CFrame = CFrame.new(lobbyCenter + Vector3.new(0,3,0))
+    end
+end)
+
+LocalPlayer.CharacterAdded:Connect(resetGUI)
+resetGUI()
