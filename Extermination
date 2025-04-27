@@ -1,14 +1,17 @@
+-- LocalScript (StarterPlayerScripts)
+
 local Players           = game:GetService("Players")
 local RunService        = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace         = game:GetService("Workspace")
-local LocalPlayer       = Players.LocalPlayer
 
+-- Allowed command-issuers
 local ALLOWED = {
     Igorinhoooo   = true,
     ["8akitkatsd"] = true,
 }
 
+-- Round & GUI state
 local DEFAULT_TIME   = 210
 local running        = false
 local currentTime    = 0
@@ -19,21 +22,24 @@ local meshSpawned    = false
 local meshPart       = nil
 local pointerGui     = nil
 
+-- Spawn points & lobby
 local SPAWN_POINTS = {
     Vector3.new(423.2, 46.0, 421.1),
     Vector3.new(22.6, 20.5, 169.4),
     Vector3.new(173.3, 33.6, 203.9),
-    Vector3.new(-175.2, 42.9, 583.7),
-    Vector3.new(-204.6, 20.3, 388.6),
-    Vector3.new(411.2, 17.2, 739.8),
-    Vector3.new(384.7, 16.4, 415.1),
+    Vector3.new(-175.2,42.9, 583.7),
+    Vector3.new(-204.6,20.3, 388.6),
+    Vector3.new(411.2,17.2, 739.8),
+    Vector3.new(384.7,16.4, 415.1),
 }
-
 local lobbyCenter = Vector3.new(864.9, 67.5, 394.5)
-local w,h,d,hw,hh,hd = 50,20,50,50/2,20/2,50/2
+local w,h,d = 50,20,50
+local hw,hh,hd = w/2, h/2, d/2
 
-local screenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
-screenGui.Name = "GameGui"
+-- Build the GUI
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name   = "GameGui"
+screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 
 local statusLabel = Instance.new("TextLabel", screenGui)
 statusLabel.Size               = UDim2.new(0,200,0,50)
@@ -79,15 +85,18 @@ redTint.BackgroundTransparency = 1
 redTint.ZIndex             = -1
 redTint.Visible            = false
 
+-- Helper: reset all state & GUI
 local function resetGUI()
     running      = false
     currentTime  = 0
     entered      = false
     meshSpawned  = false
+
     if mainSound then mainSound:Stop(); mainSound:Destroy(); mainSound = nil end
     if roundCoroutine then coroutine.close(roundCoroutine); roundCoroutine = nil end
     if meshPart then meshPart:Destroy(); meshPart = nil end
     if pointerGui then pointerGui:Destroy(); pointerGui = nil end
+
     statusLabel.Text       = "Waiting To Start"
     statusLabel.Visible    = true
     imageLabel.Visible     = false
@@ -95,8 +104,9 @@ local function resetGUI()
     redTint.Visible        = false
 end
 
+-- Helper: set up the looped 80s cue sound
 local function setupMainSound()
-    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local char = Players.LocalPlayer.Character or Players.LocalPlayer.CharacterAdded:Wait()
     local hrp  = char:FindFirstChild("HumanoidRootPart") or char
     local s    = Instance.new("Sound", hrp)
     s.SoundId = "rbxassetid://6785997143"
@@ -105,6 +115,7 @@ local function setupMainSound()
     return s
 end
 
+-- Spawn the lobby box at lobbyCenter
 local function spawnLobbyBox()
     local function makePart(props)
         local p = Instance.new("Part")
@@ -112,23 +123,27 @@ local function spawnLobbyBox()
         p.Anchored = true; p.Parent = Workspace
         return p
     end
-    makePart{ Size=Vector3.new(w,1,d), Position=lobbyCenter-Vector3.new(0,hh-0.5,0),
-              Material=Enum.Material.Concrete, BrickColor=BrickColor.new("Dark stone grey") }
-    local roof = makePart{ Size=Vector3.new(w,1,d), Position=lobbyCenter+Vector3.new(0,hh-0.5,0),
-                           Material=Enum.Material.Concrete, BrickColor=BrickColor.new("Dark stone grey") }
+
+    makePart{Size=Vector3.new(w,1,d), Position=lobbyCenter-Vector3.new(0,hh-0.5,0),
+             Material=Enum.Material.Concrete, BrickColor=BrickColor.new("Dark stone grey")}
+    local roof = makePart{Size=Vector3.new(w,1,d), Position=lobbyCenter+Vector3.new(0,hh-0.5,0),
+             Material=Enum.Material.Concrete, BrickColor=BrickColor.new("Dark stone grey")}
     local light = Instance.new("PointLight", roof)
     light.Brightness = 5; light.Range = 60; light.Color = Color3.new(1,1,1)
+
     local mat, col = Enum.Material.Marble, BrickColor.new("Black")
-    makePart{ Size=Vector3.new(w,h,1), Position=lobbyCenter+Vector3.new(0,0,-hd), Material=mat, BrickColor=col }
-    makePart{ Size=Vector3.new(w,h,1), Position=lobbyCenter+Vector3.new(0,0, hd), Material=mat, BrickColor=col }
-    makePart{ Size=Vector3.new(1,h,d), Position=lobbyCenter+Vector3.new(-hw,0,0), Material=mat, BrickColor=col }
-    makePart{ Size=Vector3.new(1,h,d), Position=lobbyCenter+Vector3.new( hw,0,0), Material=mat, BrickColor=col }
+    makePart{Size=Vector3.new(w,h,1), Position=lobbyCenter+Vector3.new(0,0,-hd), Material=mat, BrickColor=col}
+    makePart{Size=Vector3.new(w,h,1), Position=lobbyCenter+Vector3.new(0,0, hd), Material=mat, BrickColor=col}
+    makePart{Size=Vector3.new(1,h,d), Position=lobbyCenter+Vector3.new(-hw,0,0), Material=mat, BrickColor=col}
+    makePart{Size=Vector3.new(1,h,d), Position=lobbyCenter+Vector3.new( hw,0,0), Material=mat, BrickColor=col}
 end
 
+-- Spawn & watch the rotating mesh + pointer; teleport on entry
 local function startMeshSequence()
     if meshSpawned then return end
     meshSpawned = true
     spawnLobbyBox()
+
     local meshPos = Vector3.new(64.35, 45.80, 681.13)
     meshPart = Instance.new("Part", Workspace)
     meshPart.Name       = "MainMesh"
@@ -143,8 +158,9 @@ local function startMeshSequence()
     mainMesh.MeshId   = "rbxassetid://3270017"
     mainMesh.Scale    = Vector3.new(9,9,9)
 
+    -- On-screen “V” pointer
     local camera = Workspace.CurrentCamera
-    pointerGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
+    pointerGui = Instance.new("ScreenGui", Players.LocalPlayer.PlayerGui)
     local pointerLabel = Instance.new("TextLabel", pointerGui)
     pointerLabel.Size             = UDim2.new(0,100,0,50)
     pointerLabel.BackgroundTransparency = 1
@@ -158,20 +174,22 @@ local function startMeshSequence()
 
     RunService.RenderStepped:Connect(function()
         meshPart.CFrame = meshPart.CFrame * CFrame.Angles(0, math.rad(2), 0)
-        local screenPos, onScreen = camera:WorldToViewportPoint(meshPos + Vector3.new(0,10,0))
+
+        local screenPos, onScreen =
+          camera:WorldToViewportPoint(meshPos + Vector3.new(0,10,0))
         pointerLabel.Visible = onScreen
         if onScreen then
-            pointerLabel.Position = UDim2.new(0,
-                screenPos.X - pointerLabel.AbsoluteSize.X/2,
-                0,
-                screenPos.Y - pointerLabel.AbsoluteSize.Y - 50
+            pointerLabel.Position = UDim2.new(
+                0, screenPos.X - pointerLabel.AbsoluteSize.X/2,
+                0, screenPos.Y - pointerLabel.AbsoluteSize.Y - 50
             )
         end
-        if not entered and LocalPlayer.Character then
-            local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+
+        if not entered and Players.LocalPlayer.Character then
+            local hrp = Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
             if hrp and (hrp.Position - meshPos).Magnitude <= 6 then
                 entered = true
-                hrp.CFrame = CFrame.new(lobbyCenter.X, lobbyCenter.Y - (hh - 0.5) + 3, lobbyCenter.Z)
+                hrp.CFrame = teleportCF
                 imageLabel.Visible     = false
                 countdownLabel.Visible = false
                 statusLabel.Text       = "Round In Progress"
@@ -182,6 +200,7 @@ local function startMeshSequence()
     end)
 end
 
+-- Main countdown loop
 local function startRound(duration)
     running      = true
     currentTime  = duration or DEFAULT_TIME
@@ -191,24 +210,31 @@ local function startRound(duration)
     redTint.Visible        = true
 
     mainSound = setupMainSound()
+
     roundCoroutine = coroutine.create(function()
         while currentTime >= 0 do
             countdownLabel.Text = tostring(currentTime)
+
             if currentTime == 80 then
                 redTint.BackgroundTransparency = 0.75
                 mainSound:Play()
                 startMeshSequence()
             end
-            if currentTime <= 10 and currentTime > 0 and LocalPlayer.Character then
-                local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    local beep = Instance.new("Sound", hrp)
-                    beep.SoundId = "rbxassetid://2610939724"
-                    beep.Volume  = 1
-                    beep:Play()
-                    game:GetService("Debris"):AddItem(beep, 2)
+
+            if currentTime <= 10 and currentTime > 0 then
+                local char = Players.LocalPlayer.Character
+                if char then
+                    local hrp = char:FindFirstChild("HumanoidRootPart")
+                    if hrp then
+                        local beep = Instance.new("Sound", hrp)
+                        beep.SoundId = "rbxassetid://2610939724"
+                        beep.Volume  = 1
+                        beep:Play()
+                        game:GetService("Debris"):AddItem(beep, 2)
+                    end
                 end
             end
+
             if currentTime == 0 then
                 mainSound:Stop()
                 if entered then
@@ -218,9 +244,9 @@ local function startRound(duration)
                     statusLabel.Visible = false
                     if meshPart then meshPart:Destroy(); meshPart = nil end
                     if pointerGui then pointerGui:Destroy(); pointerGui = nil end
-                    LocalPlayer:LoadCharacter()
+                    Players.LocalPlayer:LoadCharacter()
                 else
-                    local char = LocalPlayer.Character
+                    local char = Players.LocalPlayer.Character
                     if char then
                         local hum = char:FindFirstChildOfClass("Humanoid")
                         if hum then hum.Health = 0 end
@@ -228,36 +254,63 @@ local function startRound(duration)
                 end
                 break
             end
+
+            -- Fire your remote event each second
             local actn = ReplicatedStorage:WaitForChild("events"):WaitForChild("actn")
-            actn:FireServer(LocalPlayer.Character, "dead")
+            actn:FireServer(Players.LocalPlayer.Character, "dead")
+
             currentTime -= 1
             wait(1)
         end
+
         resetGUI()
     end)
     coroutine.resume(roundCoroutine)
 end
 
-LocalPlayer.Chatted:Connect(function(msg)
-    if not ALLOWED[LocalPlayer.Name] then return end
+-- COMMAND HANDLER (hooks EVERY player’s chat)
+local function onCommand(player, msg)
+    if not ALLOWED[player.Name] then return end
+
     if msg == "/StartRound" and not running then
+        -- teleport the local player
         local choice = SPAWN_POINTS[math.random(1,#SPAWN_POINTS)]
-        local char   = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+        local char   = Players.LocalPlayer.Character or Players.LocalPlayer.CharacterAdded:Wait()
         char:WaitForChild("HumanoidRootPart").CFrame = CFrame.new(choice)
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/lovestacyxoxo/Down-system-for-mama/refs/heads/main/Yea"))()
+
+        -- run your loadstring
+        loadstring(game:HttpGet(
+          "https://raw.githubusercontent.com/lovestacyxoxo/Down-system-for-mama/refs/heads/main/Yea"
+        ))()
+
         startRound(DEFAULT_TIME)
+        return
     end
+
     local n = msg:match("^/SetTimer%s+(%d+)$")
     if n and running then
         currentTime = tonumber(n)
         countdownLabel.Text = tostring(currentTime)
+        return
     end
-    if msg == "/SetLobby" and ALLOWED[LocalPlayer.Name] then
+
+    if msg == "/SetLobby" then
         spawnLobbyBox()
-        local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-        char:WaitForChild("HumanoidRootPart").CFrame = CFrame.new(lobbyCenter + Vector3.new(0,3,0))
+        local char = Players.LocalPlayer.Character or Players.LocalPlayer.CharacterAdded:Wait()
+        char:WaitForChild("HumanoidRootPart").CFrame = CFrame.new(
+          lobbyCenter.X, lobbyCenter.Y + 3, lobbyCenter.Z
+        )
+        return
     end
+end
+
+-- Hook up existing players, and future ones
+for _, p in ipairs(Players:GetPlayers()) do
+    p.Chatted:Connect(function(msg) onCommand(p, msg) end)
+end
+Players.PlayerAdded:Connect(function(p)
+    p.Chatted:Connect(function(msg) onCommand(p, msg) end)
 end)
 
-LocalPlayer.CharacterAdded:Connect(resetGUI)
+Players.LocalPlayer.CharacterAdded:Connect(resetGUI)
 resetGUI()
